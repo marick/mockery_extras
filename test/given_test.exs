@@ -2,7 +2,7 @@ defmodule GivenTest do
   use ExUnit.Case
   import Mockery.Macro
   use MockeryExtras.Given
-  alias MockeryExtras.Given.Util
+  alias MockeryExtras.Stubbery
   import FlowAssertions.AssertionA, only: [assertion_fails: 2]
 
   def function_under_test_uses_date(count) do
@@ -115,10 +115,10 @@ defmodule GivenTest do
 
   describe "util" do 
     test "matchers" do
-      assert Util.make_matcher([1, 2]).([1, 2   ])
-      refute Util.make_matcher([1, 2]).([1, 2222])
-      assert Util.make_matcher([1, 1+1]).([1, 2])
-      assert Util.make_matcher([1, @any]).([1, 3333])
+      assert Stubbery.make_matcher([1, 2]).([1, 2   ])
+      refute Stubbery.make_matcher([1, 2]).([1, 2222])
+      assert Stubbery.make_matcher([1, 1+1]).([1, 2])
+      assert Stubbery.make_matcher([1, @any]).([1, 3333])
     end
   end    
 end

@@ -1,18 +1,13 @@
 defmodule MockeryExtras do
   @moduledoc """
-  Documentation for `MockeryExtras`.
+  
+  `MockeryExtras.Given` provides a simple way to stub function calls.
+
+      use Given
+      given Map.get(%{}, :key), return: "5"
+      given Map.get(@any, :key), return: "5"
+
+  There is also support for writing your own macros.
   """
 
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> MockeryExtras.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end
