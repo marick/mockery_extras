@@ -26,7 +26,7 @@ defmodule MockeryExtras.Getters do
 
   So you can hide the structure behind "getters" that (alone) know how
   to reach into the structure and retrieve a value. They present a
-  "flattened" API.
+  "flattened" API to client code.
 
   Those functions are simple to write manually, but you might
   as well use a macro to do it for you:
@@ -40,12 +40,14 @@ defmodule MockeryExtras.Getters do
       getters(:down, :down, [:lowest])
       # lowest(all) => 3
 
-  See `getters/1` for details such as how to specify default values
+  See `getters/1` for details, such as how to specify default values
   (akin to those of `Map.get/3` or `Keyword.get/3`).
 
-  See [Stubbing Complex Structures](../stubbing_complex_structures.md)
-  to see how a little bit of custom (copy and tweak) work can improve the
-  testing of code that works against a flattened API.
+  See [Stubbing Complex
+  Structures](https://github.com/marick/mockery_extras/blob/main/stubbing_complex_structures.md)
+  to see how a little bit of custom (copy and tweak) work can improve
+  the testing of code that works against a flattened API, plus an
+  alternative to verbose code like `MyStructure.getter(structure)`.
   """
 
   # ---------GETTERS----------------------------------------------------------
@@ -59,13 +61,12 @@ defmodule MockeryExtras.Getters do
 
   Note that the getter's argument can be either a `Map` or a `Keyword`. 
 
-  When defined like the above, a `KeyError` will be raised if any key
-  is missing.
-
   Default values can be given:
     
       getters([:x, y: "some default"])
       # y(%{}) => "some default"
+
+  If there's no default, a missing value will produce a `KeyError`.
   """
 
   defmacro getters(names) when is_list(names) do
@@ -87,8 +88,10 @@ defmodule MockeryExtras.Getters do
       # x(%{top: [x: 1]}) => 1
       # y(%{top: [    ]}) => "some default"
 
-  Note that the default only applies at the bottom level. If `:top` is
-  missing, there a `RuntimeError` will be raised.
+  Note that the default only applies at the bottom level. The
+  following will raise a `RuntimeError`:
+
+
   """
   defmacro getters(top_level, names) when is_list(names) do
     for name <- names, do: Defx.defx(:def, name, [top_level, name])
@@ -104,7 +107,7 @@ defmodule MockeryExtras.Getters do
   # ---------RENAMING GETTERS----------------------------------------------------
 
   @doc """
-  Define a getter with a different name than the field it accesses.
+  Define a single getter with a different name than the field it accesses.
 
   For example, this:
 
@@ -151,8 +154,6 @@ defmodule MockeryExtras.Getters do
 
   Most often this is used in a module that defines a structure, its getters,
   and also more complicated functions that work on the structure. 
-
-  The getter can still be stubbed. [[[Can it?]]]
   """
 
   defmacro private_getters(names) when is_list(names) do

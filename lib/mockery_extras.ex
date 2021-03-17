@@ -7,19 +7,19 @@ defmodule MockeryExtras do
       given Map.get(%{}, :key), return: "5"
       given Map.get(@any, :key), return: "5"
 
-  There is also support for writing your own macros.
+  There is also support for writing your own stubbing
+  macros.
 
   --------------
 
-  `MockeryExtras.Getters` makes it easy to hide complex structures
-  from client code and tests. It provides a shorthand notation to
-  define getters, plus supports lightweight use of those getters in
-  product code and tests.
-
-      #### Complex structure and getters
+  `MockeryExtras.Getters` provides shorthand for defining
+  getters for nodes in complex structures. With a small amount of
+  copying and pasting, you can isolate both client code and tests from
+  details about structure.  See [Stubbing Complex
+  Structures](https://github.com/marick/mockery_extras/blob/main/stubbing_complex_structures.md)
+  for an example.
 
       defmodule EctoTestDSL.Run.RunningExample do
-        @enforce_keys [:example, :history]
         defstruct [:example, :history,
                    script: :none_just_testing,
                    tracer: :none]
@@ -31,31 +31,6 @@ defmodule MockeryExtras do
           field_checks: %{},
           fields_from: :nothing,
         ]
-
-      #### Use in client code. The verbose way: 
-
-      def check_new_fields(running, which_step) do
-        neighborhood = RunningExample.neighborhood(:running)
-        ...
-
-      # ... or the terse way:
-
-      def check_new_fields(running, which_step) do
-        from(running, use: [:neighborhood, :name, :field_checks,
-                            :fields_from, :usually_ignore])
-
-      #### Use in test code
-
-      setup do
-        stub(name: :example, neighborhood: %{}, usually_ignore: [])
-        :ok
-      end
-
-      test "..." do 
-        stub(checks: %{name: "Bossie"}, ...)
-        ...
-        actual = Steps.check_new_fields(:running, :changeset_from_params)
-      end
   """
 
 end

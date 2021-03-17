@@ -6,8 +6,8 @@ defmodule MockeryExtras.Given do
   @moduledoc """
   This module provides a pretty notation for a common case that's not
   gracefully handled by [Mockery](https://hexdocs.pm/mockery/readme.html). 
-  Here is how you instruct Mockery to return a specific value 
-  when a function is called with a specific set of arguments:
+  Here is how you instruct Mockery to return the value `"5"` when
+  `Map.get/3` is called with `%{}` and `:key`:
 
       use MockeryExtras.Given
       given Map.get(%{}, :key), return: "5"
@@ -25,7 +25,7 @@ defmodule MockeryExtras.Given do
   Takes what looks like a function call, plus a return value, and arranges that
   such a function call will return the given value whenever it's made at a
   ["seam"](https://www.informit.com/articles/article.aspx?p=359417&seqNum=2)
-  marked with `Mockery.mockable/1`. 
+  marked with [`Mockery.mockable`](https://hexdocs.pm/mockery/Mockery.Macro.html#mockable/2). 
 
       # Code:
       ... mockable(Schema).changeset(struct, params) ...
@@ -66,7 +66,7 @@ defmodule MockeryExtras.Given do
   * If there's more than one match, the first is used.
 
   * If the same arglist is given twice, the second replaces the first.
-    This is useful for `setup` methods:
+    That lets you use ExUnit `setup` to establish defaults:
 
         def setup do  
           given RunningExample.params(:a_runnable), return: %{}
@@ -78,7 +78,7 @@ defmodule MockeryExtras.Given do
         end
 
   * If a function has a `given` value for one or more arglists, but none
-    matched, an error is thrown.
+    matched, an error is raised.
   """
   
   defmacro given(funcall, return: value) do
@@ -145,6 +145,15 @@ defmodule MockeryExtras.Given do
   This shows (as with `IO.inspect`) all the existing stubs.
 
   The format is not pretty.
+
+      [
+        {{Given, Date, [add: 2]},
+         [
+           {[~D[2001-02-03], 3], "return for 3",
+            #Function<9.8563522/1 in MockeryExtras.Stubbery.make_matcher/1>}
+         ]}
+      ]
+
   """
   def inspect do
     Process.get
