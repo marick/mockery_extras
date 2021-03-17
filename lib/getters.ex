@@ -2,9 +2,9 @@ defmodule MockeryExtras.Getters do
   alias MockeryExtras.Defx
   
   @moduledoc """
-  Utilities for defining `mockable` functions that get map/struct/keyword values up to
-  three levels of nesting. 
 
+  Utilities for defining functions that get map/struct/keyword values
+  up to three levels of nesting. 
 
   Even though complex nested structures aren't necessarily the best
   thing for your code, they sometimes exist: 
@@ -28,10 +28,8 @@ defmodule MockeryExtras.Getters do
   to reach into the structure and retrieve a value. They present a
   "flattened" API.
 
-  ## Defining getters
-
-  Those functions are simple to write, so you might
-  as well use a macro to do that for you:
+  Those functions are simple to write manually, but you might
+  as well use a macro to do it for you:
 
       getters([:top1, :top2])
       # defines top1/1, top2/1, so that:
@@ -45,124 +43,83 @@ defmodule MockeryExtras.Getters do
   See `getters/1` for details such as how to specify default values
   (akin to those of `Map.get/3` or `Keyword.get/3`).
 
-  ## Mocking/stubbing support
-
-  If you go to the trouble of creating a flattened API to protect client code
-  from structure, you probably want to do the same thing for tests. That is,
-  you don't want tests to create an actual nested structure. Instead you want to
-  stub out the getter functions.
-
-  To explain, I'll use this (simplified) version of a structure of mine:
-
-      defmodule EctoTestDSL.Run.RunningExample do
-        @enforce_keys [:example, :history]
-        defstruct [:example, :history, ...]
-    
-        getters :example, [
-          :name, :schema_module, :usually_ignore
-          checks: %{}
-          neighborhood: %{}
-          ...
-        ]
-        ...
-
-  Those getters are already set up for stubbing, so
-  `MockeryExtras.Given.given/2` can be used in tests:
-
-      test "expected values" do 
-        given RunningExample.checks(:running), return: %{name: "Bossie"}
-                                    ^^^^^^^^
-        actual = Steps.check_new_fields(:running, :changeset_from_params)
-                                        ^^^^^^^^                            
-        ...
-
-
-  Notice that I use the atom `:running` instead of a composite
-  structure.
-
-
-  ## Conveniences for you to copy and tweak
-
-  The `given` notation is still more cumbersome than I like, so I'll
-  typically create some structure-specific stubs that do more of the
-  work. My tests for functions that work with `RunningExamples` use a macro
-  called `stub`:
-
-      setup do
-        stub(name: :example, neighborhood: %{}, usually_ignore: [])
-        :ok
-      end
-
-      test "..." do 
-        stub(checks: %{name: "Bossie"}, ...)
-        ...
-      end
-
-   You can find the definition of `stub` in
-   [examples/running_stubs.ex](../examples/running_stubs.ex).
-
-   A problem with wrapping a nested structure in an API with getters
-   is that you lose Elixir's concise `.` notation. You'll have to type
-   something like `RunningExample.checks(running)` instead of
-   `running.checks`.
-
-   For that reason, I'll typically use a shorthand notation in
-   the beginning of functions like `Steps.check_new_fields`:
-
-       def check_new_fields(running, which_step) do
-         from(running, use: [:neighborhood, :name, :field_checks,
-                             :fields_from, :usually_ignore])
-   
-   That is the same as:
-
-       def check_new_fields(running, which_step) do
-         neighborhood = RunningExample.neighborhood(:running)
-         name = RunningExample.name(:running)
-         field_checks = RunningExample.field_checks(:running)
-
-  See [examples/from.ex](../examples/from.ex) for the definition of
-  `from` and the related `from_history` (not explained here).
+  See [Stubbing Complex Structures](../stubbing_complex_structures.md)
+  to see how a little bit of custom (copy and tweak) work can improve the
+  testing of code that works against a flattened API.
   """
 
   # ---------GETTERS----------------------------------------------------------
   @doc """
+  Define N getters, possibly with defaults.
+
+  The argument must be a list. For each atom in the list, a function effectively
+  like the following is defined:
+
+      def atom(structure), do: structure[atom]
+
+  Note that the getter's argument can be either a `Map` or a `Keyword`. 
+
   When defined like the above, a `KeyError` will be raised if any key
   is missing.
 
   Default values can be given:
     
-      getters(:down, [lower: "some default"])
-      # lower(%{down: %{}}) => "some default"
-
-
-  Only the last step in the path may be missing. Applying `lower` to `%{}`
-  would result in a key error.
-
-  A variant, `private_getters`, will define the getters with `defp` instead
-  of `def`.
-  The generated functions will work with any combination of maps, structures, or
-  keywords. So, for example, the following works:
-
-      getters :history, [:params, :changeset]
-    
-      # changeset(%{history: [changeset: "..."]}) => "..."
-
+      getters([:x, y: "some default"])
+      # y(%{}) => "some default"
   """
 
   defmacro getters(names) when is_list(names) do
     for name <- names, do: Defx.defx(:def, name, [name])
   end
 
+  @doc """
+  Define N getters for the second level of a nested structure.
+
+  The first argument is an atom that's expected to index
+  a `Map` or `Keyword`. The value of that index is again expected to be 
+  a `Map` or `Keyword`.
+
+  The second argument is a list with the same form as in
+  `getters/1`. It provides the names for the generated functions. (The
+  first argument plays no role.)
+
+      getters(:top, [:x, y: "some default"])
+      # x(%{top: [x: 1]}) => 1
+      # y(%{top: [    ]}) => "some default"
+
+  Note that the default only applies at the bottom level. If `:top` is
+  missing, there a `RuntimeError` will be raised.
+  """
   defmacro getters(top_level, names) when is_list(names) do
     for name <- names, do: Defx.defx(:def, name, [top_level, name])
   end
 
+  @doc """
+  Define N getters for the third level of a nested structure.
+  """ 
   defmacro getters(top_level, next_level, names) when is_list(names) do
     for name <- names, do: Defx.defx(:def, name, [top_level, next_level, name])
   end
 
   # ---------RENAMING GETTERS----------------------------------------------------
 
+  @doc """
+  Define a getter with a different name than the field it accesses.
+
+  For example, this:
+
+      getter :meio, for: [:root, :middle]
+      # meio(root: %{middle: 3}) => 3
+
+  A default can also be provided:
+
+      getter :meio, for: [:root, :middle], default: "default"
+      # meio(root: %{}) => "default"
+
+  If the getter is for the top level, the `for:` value needn't be a list:
+
+      getter :raiz, for: :root
+  """ 
   defmacro getter(name, opts) do
     Defx.defx(:def, name, create_path(opts))
   end
@@ -188,24 +145,31 @@ defmodule MockeryExtras.Getters do
   end
 
   # ---------PRIVATE_GETTERS----------------------------------------------------------
-  
+
+  @doc """
+  The same as `getters/1` except the functions are generated using `defp`.
+
+  Most often this is used in a module that defines a structure, its getters,
+  and also more complicated functions that work on the structure. 
+
+  The getter can still be stubbed. [[[Can it?]]]
+  """
+
   defmacro private_getters(names) when is_list(names) do
     for name <- names, do: Defx.defx(:defp, name, [name])
   end
 
+  @doc """
+  The same as `getters/2` except the functions are generated using `defp`.
+  """
   defmacro private_getters(top_level, names) when is_list(names) do
     for name <- names, do: Defx.defx(:defp, name, [top_level, name])
   end
 
+  @doc """
+  The same as `getters/3` except the functions are generated using `defp`.
+  """
   defmacro private_getters(top_level, next_level, names) when is_list(names) do
     for name <- names, do: Defx.defx(:defp, name, [top_level, next_level, name])
-  end
-
-  # ----------------------------------------------------------------------------
-
-  defmacro publicize(new_name, renames: old_name) do
-    quote do
-      def unquote(new_name)(maplike), do: unquote(old_name)(maplike)
-    end
   end
 end
