@@ -82,11 +82,21 @@ defmodule MockeryExtras.Given do
   """
   
   defmacro given(funcall, return: value) do
+    given_(funcall, value)
+  end
+
+  defmacro given(funcall, do: value) do
+    IO.puts "Prefer `given ..., return: ...` to `given ..., do: ...`"
+    given_(funcall, value)
+  end
+
+  defp given_(funcall, value) do
     {_, the_alias, name_and_arity, arglist_spec} = 
       MacroX.decompose_call_alt(funcall)
 
     expand(the_alias, name_and_arity, arglist_spec, value)
   end
+    
 
   @doc """
   The guts of `given/2` for use in your own macros.
