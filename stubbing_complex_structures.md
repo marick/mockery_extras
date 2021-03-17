@@ -1,23 +1,23 @@
 # Stubbing complex structures
 
 Sometimes, despite what you might want, you end up with a complex
-structure -- sometimes call a "God object" -- that's used in many
+structure -- sometimes called a "God object" -- that's used in many
 places in your code. If that client code contains text like
 `user.privileges[:author].read`, you have two problems:
 
 1. Any attempt to change the "shape" of the complex structure becomes
-   hard because there are many places to change. That further
-   locks you into the complexity because it's too painful to undo it
+   hard because there are so many places to change. That
+   locks you into complexity because it's too painful to undo it
    by, for example, breaking the single structure into several.
    
 2. Tests have to construct sample data. In a dynamically typed
-   language, they don't have to create a complete God object: they need
-   only supply the fields the code under test uses. But, once again,
-   changes to the structure can require a lot of changes to the test.
+   language, they don't have to create a complete God object; they need
+   only supply the fields the code under test actually uses. But, once again,
+   changes to the structure can require a lot of changes to tests.
    
 Here, I'll show how to avoid such coupling, using the code in
 `MockeryExtras.Getters` and `MockeryExtras.Given`. The emphasis is
-both on simplifying change and on avoiding a lot of busywork.
+on both simplifying change and avoiding busywork.
 
 ## TL;DR
 
