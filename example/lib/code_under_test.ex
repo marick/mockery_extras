@@ -1,17 +1,16 @@
 defmodule Example.Steps do
   use Example.From
-  import ExUnit.Assertions
   import FlowAssertions.Define.BodyParts
+  # The package this is extracted from supports testing. So "product code"
+  # uses some assertion-building code I've also written. See `flow_assertions`
+  # in Hex. (The majority of that package is useful assertions built with
+  # `FlowAssertions.Define`.)
 
-  Module.register_attribute __MODULE__, :step, accumulate: true, persist: true
-
-  @step :assert_valid_changeset
   def assert_valid_changeset(running, which_changeset) do 
-    from(running, use: [:name, :workflow_name])
-    from_history(running, changeset: which_changeset)
+    from(running, use: [:name, :workflow_name])         # <<< bind variables
+    from_history(running, changeset: which_changeset)   # <<<
 
-    # The package this is extracted from supports testing. So "product code"
-    # uses ExUnit
+    # The rest of this is just code.
     adjust_assertion_message(
       fn ->
         elaborate_assert(changeset.valid?,

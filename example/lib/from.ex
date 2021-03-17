@@ -1,6 +1,10 @@
-defmodule Example.From do
-  alias Example.RunningExample
+## This code is in the public domain.
 
+defmodule Example.From do
+  alias Example.RunningExample, as: ModuleWithGetters 
+  ##    ^^^^^^^^^^^^^^^^^^^^^^  Change this
+
+  ## You can probably copy this function as is.
   defmacro from(running, use: keys) do
     assert_existence(keys, 1)
     varlist = Enum.map(keys, &one_var/1)    
@@ -8,9 +12,16 @@ defmodule Example.From do
     emit(varlist, calls)
   end
 
+  # This is for getters that take an extra argument. The first
+  # argument is used to navigate along a path defined at compile time.
+  # The second argument, not known at compile time, selects a field
+  # within what was found at the end of the path.
+  #
+  #  You will have to change the getter `two_arg_access` uses (in this case,
+  #  `ModuleWithGetters.step_value/2`) and doubtless the name `from_history`.
   defmacro from_history(running, kws) do
     varlist = Enum.map(kws, &one_var/1)
-    calls = Enum.map(kws, &(history_access &1, running))
+    calls = Enum.map(kws, &(two_arg_access &1, running))
     emit(varlist, calls)
   end
 
@@ -20,7 +31,7 @@ defmodule Example.From do
 
   defp assert_existence(names, of_arity) do
     relevant = 
-      RunningExample.__info__(:functions)
+      ModuleWithGetters.__info__(:functions)
       |> Enum.filter(fn {_, arity} -> arity == of_arity end)
       |> Enum.map(fn {name, _} -> name end)
       |> MapSet.new
@@ -32,15 +43,15 @@ defmodule Example.From do
   end
   
   defp field_access(key, running) do
-    quote do: mockable(RunningExample).unquote(key)(unquote(running))
+    quote do: mockable(ModuleWithGetters).unquote(key)(unquote(running))
   end
 
-  defp history_access({_var_name, step_name}, running),
-    do: history_access(step_name, running)
+  defp two_arg_access({_var_name, step_name}, running),
+    do: two_arg_access(step_name, running)
 
-  defp history_access(step_name, running) do
+  defp two_arg_access(step_name, running) do
     quote do 
-      mockable(RunningExample).step_value!(unquote(running), unquote(step_name))
+      mockable(ModuleWithGetters).step_value!(unquote(running), unquote(step_name))
     end
   end
 

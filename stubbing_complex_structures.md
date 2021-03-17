@@ -21,9 +21,66 @@ on both simplifying change and avoiding busywork.
 
 ## TL;DR
 
+#### Make getters
+
+```elixir
+defmodule Example.RunningExample do
+  import MockeryExtras.Getters
+  
+  defstruct [:example, :history]
+
+  getters :example, [
+    eens: [], field_checks: %{}
+  ]
+  getters :example, :metadata, [
+    :name, :workflow_name, :repo, :module_under_test
+  ]
+```
+
+#### Use getters - tersely and stubbably - in client code: 
+
+```elixir
+defmodule Example.Steps do
+  use Example.From
+
+  def assert_valid_changeset(running, which_changeset) do 
+    from(running, use: [:name, :workflow_name])                 # <<<<
+    from_history(running, changeset: which_changeset)           # <<<<
+    # `name = RunningExample.name(running)`, etc. is too wordy
+
+    do_something_with(name, workflow_name, changeset)
+  end
+```
+
+The above requires copying and slightly tweaking code in [Example.From](example/lib/from.ex).
+
+#### Don't build structures, stub getters
+
+
+```elixir
+defmodule Example.StepsTest do
+  ... 
+  import Example.RunningStubs
+
+  setup do # overridable defaults
+    stub [name: :example, workflow_name: :success]
+    :ok
+  end
+
+  test "..." do 
+    stub(field_checks: %{name: "Bossie"}, ...)
+    stub_history(inserted_value: ...)
+    ...
+    assert ...
+end
+
+The above requires copying and slightly tweaking code in [Example.RunningStubs](example/test/support/running_stubs.ex).
+
+```
+
 ## Necessary Background
 
-I'll use a simplified version of code from
+I'll use a simplified version of code from (the unfinished)
 [`ecto_test_dsl`](https://github.com/marick/ecto_test_dsl) as an
 example. That code works on *examples* of how particular Ecto schemas
 are manipulated by client code. Examples are a terse notation for
@@ -31,7 +88,7 @@ creating tests of Ecto validation, insertion, constraint checking, and
 so on.
 
 People tend to use Ecto in a stylized way - that is, a lot of their
-code looks pretty much the same. But different people's style can be
+code looks pretty much the same. But different people's styles can be
 different. Some people use what I think of as "Phoenix Classic" style
 (where, for example, changesets are checked after a `Repo.insert`, not
 before). I myself prefer a "view model" style, which involves two Ecto
@@ -54,7 +111,7 @@ structure supporting them has to be open-ended. Specifically, the
 *history* is a keywod list. Each result is pushed onto it as a
 `{step_name, step_value}` pair.
 
-## `RunningExample`
+## Adding getters to `RunningExample`
 
 *Note: this is the least interesting of the next three parts. Feel
 free to skim. The detail will be most useful if you want to copy this
@@ -69,11 +126,10 @@ defmodule Example.RunningExample do
   defstruct [:example, :history]
 ```
 
-(There are more fields in the real structure, but they add nothing here.)
+* There are more fields in the real structure, but they add nothing here.
+* You can find all the example code, including tests, in [`example`](example).
 
-(You can find all the example code, including tests, in [`example`](example).)
-
-It would be easy enough to create "getter" functions for fields, like this:
+It would be easy enough to write "getter" functions for nested subfields, like this:
 
 ```elixir
 defmodule Example.RunningExample do
@@ -82,30 +138,34 @@ defmodule Example.RunningExample do
   def field_checks(running), do: Map.get(running.example, :field_checks, %{})
 ```
 
-... and so on. However, that's the kind of work a computer --
-specifically, a macro -- should do:
+However, that's the kind of work a computer -- specifically, a macro
+-- should do:
 
 ```elixir
   import MockeryExtras.Getters
   getters :example, [eens: [], field_checks: %{}]
 ```
 
-It's actually more common for code and tests to work with data stored
-another level below `:examples`, under `:metadata`. Those getters are
-created like this:
+Most of the code and tests actually work field fields yet another
+level lower, in `running_example.example.metadata`.  Getters for those
+are created like this:
 
 ```elixir
   getters :example, :metadata, [:name, :repo, :module_under_test]
 ```
 
-Note: `:metadata` as a name made some sense, once upon a time, but
-it's a crummy name now. Because access to its data is via
-`RunningExamples.name/1`, `RunningExample.repo/1`, and so on, it would
-be easy to change, but I haven't gotten around to it.
+* `:metadata` as a name made some sense, once upon a time, but it's a
+  crummy name now. Because access to its data is via
+  `RunningExamples.name/1`, `RunningExample.repo/1`, and so on, `:metadata` would
+  be easy to change, but I haven't gotten around to it.
 
-While we're talking about bad names, one of the first mandatory keys
+While we're talking about bad names, one of the first keys I put 
 under `:example` was `:params`. It originally meant parameters written
-as atom/value pairs: `%{name: "Bossie", age: 1, tags: ["docile"]}` 
+as atom/value pairs: 
+
+```elixir
+%{name: "Bossie", age: 1, tags: ["docile"]}
+```
 
 Since then, it's become useful to add on two other kinds:
 
@@ -115,7 +175,9 @@ Since then, it's become useful to add on two other kinds:
 * *formatted* parameters are ones formatted the same way EEx does, and thus
   how they're actually presented to Phoenix controllers. For example:
   
-      %{"name" => "Bossie", "age" => "1", "tags" => ["docile"]}
+  ```elixir
+  %{"name" => "Bossie", "age" => "1", "tags" => ["docile"]}
+  ```
 
 For clarity, the original `:params` should be replaced with a better
 name. For the moment, I've just given the getter a different name:
@@ -127,42 +189,47 @@ name. For the moment, I've just given the getter a different name:
 ### Getters with arguments
 
 The history has to be handled a bit differently. Recall that it's a
-keyword list without hardcoded keys. So its getter must take an argument:
+keyword list without hardcoded keys. (Different variants will have
+different steps.) So its getter must take an argument:
 
 ```elixir
   def step_value!(%{history: history}, step_name),
     do: Keyword.fetch!(history, step_name)
 ```
 
-Well, it's *almost* without hardcoded keys. 
+This getter had to be hardcoded, but it'll be used later to simplify
+client and test code.
+
+It happens that two keys are almost certainly going to be present in all variants:
 
 * The `repo_setup` key has the result of the very first step. That step
   inserts all examples that the current example depends on. It is the
   source of all association data like private keys. I've come to think
-  of this as the running example's *neighborhood*, so I created a
-  getter for this:
+  of this value as the running example's *neighborhood*, so I created a
+  getter for it:
   
       ```elixir
       def neighborhood(running), do: step_value!(running, :repo_setup)
       ```
       
 * What I described as the "expanded params" above are created in the
-  next step (which substitutes values from the neighborhood into the
-  original params). That step's keyword has the unfortunate name `:params`.
-  So here's a getter:
+  step after setup. It substitutes values from the neighborhood into the
+  original params. The step is unfortunately named `:params`.
+  So here's a getter with a better name:
   
       ```elixir
       def expanded_params(running), do: step_value!(running, :params)
       ```
 
-Notice that I've blurred the distinction between parameters that came
-from the user and ones that live in the history. I think that's a good
+Notice that I've blurred the distinction between parameters as defined
+in the example and ones created at runtime. I think that's a good
 thing. And I'm happy that I'm able to isolate early mistakes behind an
-API. (I should still fix some of the bad names. But not just now.)
+API. (I should still fix some of the bad names. But, as Saint
+Augustine said, "Give me chastity and continence, but not yet.")
 
 ## Terse uses of getters in client code
 
-A problem with wrapping a nested structure in an API with getters
+A problem with hiding a nested structure behind an API with getters
 is that you lose Elixir's concise `.` notation. You'll have to type
 something like `RunningExample.field_checks(running)` instead of
 `running.field_checks`.
@@ -191,18 +258,8 @@ def check_new_fields(running, which_step) do
   ...
 ```
 
-The code to produce that isn't trivial to write, but it
-should be easy for you to copy and tweak as needed. The `from` macro should be
-entirely general-purpose:
-
-```elixir
-  defmacro from(running, use: keys) do
-    assert_existence(keys, 1)
-    varlist = Enum.map(keys, &one_var/1)    
-    calls = Enum.map(keys, &(field_access(&1, running)))
-    emit(varlist, calls)
-  end
-```
+[The code](example/lib/from.ex) to produce that wasn't trivial to
+write, but you only need to copy it and make a few tweaks.
 
 ## Terse stubbing of getters in test code
 
@@ -214,11 +271,15 @@ I described above. It sets up that use of a getter for stubbing:
                  ^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-(Specifically, it uses the `mockery` package, which provides low-ceremony mocking
-and stubbing that still allows asynchronous testing.)
+* Specifically, it uses the
+  [`mockery`](https://github.com/appunite/mockery) package, which
+  provides low-ceremony mocking and stubbing that still allows
+  asynchronous testing. The repository that includes this file
+  has my additions to Mockery.
 
-For `RunningExample`, I've created `RunningStubs`, which lets tests be
-written like this:
+[`RunningStubs`](example/test/support/running_stubs.ex) supports tests
+for *clients* of `RunningExample` (not `RunningExample` itself). With
+it, such tests look like this:
 
 ```elixir
 
@@ -237,7 +298,8 @@ end
 ```
 
 The tests are now about *concepts* that the client code depends on
-(like "the neighborhood"). They are entirely not about *structure*.
+(like "the neighborhood"). Unlike non-stubbing tests, they are
+uncontaminated with *structure*.
 
 The code for `RunningStubs` is very simple:
 
@@ -255,3 +317,5 @@ The code for `RunningStubs` is very simple:
   end
 ```
 
+(In the actual file, I've added some indirection to make it clearer
+what you need to tweak when adapting the code to your situation.)
