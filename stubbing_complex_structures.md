@@ -16,8 +16,11 @@ places in your code. If that client code contains text like
    changes to the structure can require a lot of changes to tests.
    
 Here, I'll show how to avoid such coupling, using the code in
-`MockeryExtras.Getters` and `MockeryExtras.Given`. The emphasis is
+[`MockeryExtras.Getters`](https://hexdocs.pm/mockery_extras/MockeryExtras.Getters.html#content) and [`MockeryExtras.Given`](https://hexdocs.pm/mockery_extras/MockeryExtras.Given.html#content). The emphasis is
 on both simplifying change and avoiding busywork.
+
+Look in [the example directory](example) for working code to adapt.
+
 
 ## TL;DR
 
@@ -74,9 +77,11 @@ defmodule Example.StepsTest do
     assert ...
 end
 
+```
+
 The above requires copying and slightly tweaking code in [Example.RunningStubs](example/test/support/running_stubs.ex).
 
-```
+
 
 ## Necessary Background
 
@@ -113,10 +118,6 @@ structure supporting them has to be open-ended. Specifically, the
 
 ## Adding getters to `RunningExample`
 
-*Note: this is the least interesting of the next three parts. Feel
-free to skim. The detail will be most useful if you want to copy this
-approach for your own structures.*
-
 Since the history and example always exist at the same time, it makes
 sense to put them into a structure:
 
@@ -146,7 +147,7 @@ However, that's the kind of work a computer -- specifically, a macro
   getters :example, [eens: [], field_checks: %{}]
 ```
 
-Most of the code and tests actually work field fields yet another
+Most of the code and tests actually work with fields yet another
 level lower, in `running_example.example.metadata`.  Getters for those
 are created like this:
 
@@ -167,13 +168,13 @@ as atom/value pairs:
 %{name: "Bossie", age: 1, tags: ["docile"]}
 ```
 
-Since then, it's become useful to add on two other kinds:
+Since then, it's become useful to add on two meanings:
 
 * *expanded* parameters have had foreign keys or other
   association values substituted in.
   
-* *formatted* parameters are ones formatted the same way EEx does, and thus
-  how they're actually presented to Phoenix controllers. For example:
+* *formatted* parameters are ones formatted the same way EEx does. That is, 
+  they look like the ones actually presented to Phoenix controllers. For example:
   
   ```elixir
   %{"name" => "Bossie", "age" => "1", "tags" => ["docile"]}
@@ -188,6 +189,8 @@ name. For the moment, I've just given the getter a different name:
 
 ### Getters with arguments
 
+*This is skippable until you want to adapt the example to your own code.*
+
 The history has to be handled a bit differently. Recall that it's a
 keyword list without hardcoded keys. (Different variants will have
 different steps.) So its getter must take an argument:
@@ -197,10 +200,11 @@ different steps.) So its getter must take an argument:
     do: Keyword.fetch!(history, step_name)
 ```
 
-This getter had to be hardcoded, but it'll be used later to simplify
+This getter had to be written manually, but it'll be used later to simplify
 client and test code.
 
-It happens that two keys are almost certainly going to be present in all variants:
+Despite what I wrote two paragraphs ago, it happens that two keys are
+almost certainly going to be present in all variants:
 
 * The `repo_setup` key has the result of the very first step. That step
   inserts all examples that the current example depends on. It is the
@@ -208,18 +212,18 @@ It happens that two keys are almost certainly going to be present in all variant
   of this value as the running example's *neighborhood*, so I created a
   getter for it:
   
-      ```elixir
-      def neighborhood(running), do: step_value!(running, :repo_setup)
-      ```
+  ```elixir
+  def neighborhood(running), do: step_value!(running, :repo_setup)
+  ```
       
 * What I described as the "expanded params" above are created in the
   step after setup. It substitutes values from the neighborhood into the
   original params. The step is unfortunately named `:params`.
   So here's a getter with a better name:
   
-      ```elixir
-      def expanded_params(running), do: step_value!(running, :params)
-      ```
+  ```elixir
+  def expanded_params(running), do: step_value!(running, :params)
+  ```
 
 Notice that I've blurred the distinction between parameters as defined
 in the example and ones created at runtime. I think that's a good
@@ -246,7 +250,7 @@ def check_new_fields(running, which_step) do
   ...
 ```
 
-That is the same as:
+That's the same as:
 
 ```elixir
 def check_new_fields(running, which_step) do
@@ -263,8 +267,10 @@ write, but you only need to copy it and make a few tweaks.
 
 ## Terse stubbing of getters in test code
 
-The code that `from` generates is actually slightly more complicated than
-I described above. It sets up that use of a getter for stubbing:
+The code that `from` generates is actually slightly more complicated
+than I described above. It sets up a
+["seam"](https://www.informit.com/articles/article.aspx?p=359417&seqNum=2)
+for stubbing:
 
 ```elixir
   neighborhood = mockable(RunningExample).neighborhood(:running)
@@ -274,12 +280,13 @@ I described above. It sets up that use of a getter for stubbing:
 * Specifically, it uses the
   [`mockery`](https://github.com/appunite/mockery) package, which
   provides low-ceremony mocking and stubbing that still allows
-  asynchronous testing. The repository that includes this file
+  asynchronous testing. The repository that includes the page you're reading
   has my additions to Mockery.
 
-[`RunningStubs`](example/test/support/running_stubs.ex) supports tests
-for *clients* of `RunningExample` (not `RunningExample` itself). With
-it, such tests look like this:
+To build on that, I wrote
+[`RunningStubs`](example/test/support/running_stubs.ex). It supports
+tests for *clients* of `RunningExample` (not `RunningExample`
+itself). Tests that use `RunningStubs` look like this:
 
 ```elixir
 
@@ -299,7 +306,7 @@ end
 
 The tests are now about *concepts* that the client code depends on
 (like "the neighborhood"). Unlike non-stubbing tests, they are
-uncontaminated with *structure*.
+uncontaminated by knowledge of *structure*.
 
 The code for `RunningStubs` is very simple:
 
