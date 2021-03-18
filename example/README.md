@@ -22,7 +22,7 @@ An example of [Stubbing complex structures](../stubbing_complex_structures.md).
 * [lib/code_under_test.ex](lib/code_under_test.ex)
 
   A terser way to write client code that uses values from within the complex
-  data structure. (The actual name of the module is `Example.Steps`.
+  data structure. (The actual name of the module is `Example.Steps`.)
   
 * [lib/from.ex](lib/from.ex)
 
