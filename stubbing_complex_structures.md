@@ -184,7 +184,7 @@ For clarity, the original `:params` should be replaced with a better
 name. For the moment, I've just given the getter a different name:
 
 ```elixir
-  getter :original_params, from: :params
+  getter :original_params, for: :params
 ```
 
 ### Getters with arguments
