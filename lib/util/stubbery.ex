@@ -1,5 +1,6 @@
 defmodule MockeryExtras.Stubbery do
   alias ExUnit.Assertions
+  alias FlowAssertions.MiscA
   
   @moduledoc false
   
@@ -55,7 +56,7 @@ defmodule MockeryExtras.Stubbery do
 
   def make_matcher(arglist_spec) do
     check = fn {value, spec} ->
-      FlowAssertions.MiscA.good_enough?(value, spec)
+      MiscA.good_enough?(value, spec)
     end
     
     fn arglist_values ->
