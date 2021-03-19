@@ -128,6 +128,15 @@ defmodule MockeryExtras.Getters do
   end
 
   defp create_path(opts) do
+    unless Keyword.has_key?(opts, :for) do
+      raise("`getter` requires a `:for` keyword")
+    end
+
+    remainder = Keyword.drop(opts, [:for, :default])
+    unless Enum.empty?(remainder) do
+      raise("Invalid key(s) for `getter`: #{inspect Keyword.keys(remainder)}")
+    end
+    
     default? = Keyword.has_key?(opts, :default)
     default = Keyword.get(opts, :default)
     case Keyword.get(opts, :for) do

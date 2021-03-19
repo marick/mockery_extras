@@ -7,7 +7,7 @@ defmodule Example.RunningExample do
   getters :example, [eens: [], field_checks: %{}]
   getters :example, :metadata, [:name, :workflow_name, :repo, :module_under_test]
 
-  getter :original_params, from: :params
+  getter :original_params, for: :params
 
   private_getters :example, [:format]
 

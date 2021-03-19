@@ -110,6 +110,14 @@ defmodule MockeryExtrasTest do
     assert msg =~ "Did you forget to make a stub"
   end
 
+  # These are compile-time checks, so not usually turned on
+
+  # getter :original_params, from: [:example, :params]
+  # (RuntimeError) `getter` requires a `:for` keyword
+
+  # getter :original_params, for: [:example, :params], defalt: 3
+  # (RuntimeError) Invalid key(s) for `getter`: [:defalt]
+
   # ----------------------------------------------------------------------------
 
   defmodule Mixer do
