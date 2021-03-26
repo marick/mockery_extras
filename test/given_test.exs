@@ -79,7 +79,27 @@ defmodule GivenTest do
 
       assert calls_without_default(%{}, :key) == 2
     end
+  end
 
+  describe "stream" do
+    def streamer(map, key), do: mockable(Map).get(map, key)
+
+    test "typical case" do 
+      given Map.get(@any, @any), stream: [3, 4]
+      
+      assert streamer(%{}, :key) == 3
+      assert streamer(%{}, :key) == 4
+    end
+  end
+
+  test "user errors" do
+    # These have to be tested manually, because they happen at compile time.
+
+    # There must be a single keyword, either `return:` or `stream:`
+    # given Map.get(@any, @any), return: 5, stream: 6
+
+    # There must be a single keyword, either `return:` or `stream:`
+    # given Map.get(@any, @any), retur: 5
   end
     
   describe "varieties of module descriptions" do 
@@ -120,5 +140,22 @@ defmodule GivenTest do
       assert Stubbery.make_matcher([1, 1+1]).([1, 2])
       assert Stubbery.make_matcher([1, @any]).([1, 3333])
     end
+
+    @key Stubbery.process_dictionary_key(Module, [fun: 3])
+    @fun [fun: 3]
+
+    test "a `:return` stub always returns the same value" do
+      Stubbery.add_stub(@key, @fun, :return, "retval")
+      assert Stubbery.stubbed_value!(@key, @fun) == "retval"
+      assert Stubbery.stubbed_value!(@key, @fun) == "retval"
+    end
+
+    test "a `:stream` stub returns the head and side-effecs the tail " do
+      Stubbery.add_stub(@key, @fun, :stream, [1, 2])
+      assert Stubbery.stubbed_value!(@key, @fun) == 1
+      assert [{@fun, :stream, [2], _}] = Process.get(@key)
+      assert Stubbery.stubbed_value!(@key, @fun) == 2
+    end
+    
   end    
 end

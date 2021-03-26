@@ -6,6 +6,7 @@ defmodule MockeryExtras do
       use Given
       given Map.get(%{}, :key), return: "5"
       given Map.get(@any, :key), return: "5"
+      given Map.get(@any, :key), stream: [1, 2, 3]
 
   There is also support for writing your own stubbing
   macros.

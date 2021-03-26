@@ -18,14 +18,24 @@ defmodule MockeryExtras.Given do
 
       given Map.get(@any, :key), return: "5"
 
+  You may also ask that the function return a different value each time it's called: 
+
+      given Map.get(@any, :key), stream: [1, 2, 3]
+      
+
   See `given/2` for more.
   """
   
   @doc """
-  Takes what looks like a function call, plus a return value, and arranges that
-  such a function call will return the given value whenever it's made at a
+  Arrange for a function to return a stubbed value or a stream of stubbed values.
+
+  
+  The common case takes what looks like a function call, plus a return
+  value, and arranges that such a function call will return the given
+  value whenever it's made at a
   ["seam"](https://www.informit.com/articles/article.aspx?p=359417&seqNum=2)
-  marked with [`Mockery.mockable`](https://hexdocs.pm/mockery/Mockery.Macro.html#mockable/2). 
+  marked with
+  [`Mockery.mockable`](https://hexdocs.pm/mockery/Mockery.Macro.html#mockable/2).
 
       # Code:
       ... mockable(Schema).changeset(struct, params) ...
@@ -57,6 +67,15 @@ defmodule MockeryExtras.Given do
 
         given Module.f(5, &even/1), return: 8
 
+  When the `stream:` keyword is used, each new matching call returns the
+  next value in the list argument:
+
+       given Map.get(@any, @any), stream: [3, 4]
+       
+      streamer(%{}, :key) # returns 3
+      streamer(%{}, :key) # returns 4
+      streamer(%{}, :key) # assertion failure
+
   Notes:
   * You can provide return values for many arglist values. 
     
@@ -79,24 +98,17 @@ defmodule MockeryExtras.Given do
 
   * If a function has a `given` value for one or more arglists, but none
     matched, an error is raised.
+
+  * Despite the name, the value for `:stream` must be a `List`, not a `Stream`. 
   """
   
-  defmacro given(funcall, return: value) do
-    given_(funcall, value)
-  end
-
-  defmacro given(funcall, do: value) do
-    IO.puts "Prefer `given ..., return: ...` to `given ..., do: ...`"
-    given_(funcall, value)
-  end
-
-  defp given_(funcall, value) do
+  defmacro given(funcall, return_description) do
     {_, the_alias, name_and_arity, arglist_spec} = 
       MacroX.decompose_call_alt(funcall)
 
-    expand(the_alias, name_and_arity, arglist_spec, value)
+    expand(the_alias, name_and_arity, arglist_spec, return_description)
   end
-    
+
 
   @doc """
   The guts of `given/2` for use in your own macros.
@@ -114,12 +126,12 @@ defmodule MockeryExtras.Given do
 
       defmacro stub(kws) do
         for {key, val} <- kws do
-          Given.expand(RunningExample, [{key, 1}], [:running], val)
+          Given.expand(RunningExample, [{key, 1}], [:running], return: val)
         end
       end
 
   When calling `expand(module_alias, name_and_arity, arglist_spec,
-  return_value)`, know that:
+  return_spec)`, know that:
 
   * `module_alias` can be a simple atom, like `RunningExample`,
     which is an alias for `EctoTestDSL.Run.RunningExample`. More generally, it
@@ -128,17 +140,29 @@ defmodule MockeryExtras.Given do
   * `name_and_arity` is a function name and arity pair of the form `[get: 3]`.
 
   * `arglist_spec` is a list of values like `[5, @any]`.
-  * `return_value` is any value.
+  * `return_spec` should be either `return: <value>` or `stream: <list>`.
   """
-  def expand(module_alias, name_and_arity, arglist_spec, return_value) do
+  def expand(module_alias, name_and_arity, arglist_spec, return_spec)
+
+  @keyword_error "There must be a single keyword, either `return:` or `stream:`"
+  def expand(module_alias, name_and_arity, arglist_spec, [{return_type, value}]) do
+    unless return_type in [:return, :stream], do: raise @keyword_error
+    
     quote do
       module = MockeryExtras.MacroX.alias_to_module(unquote(module_alias), __ENV__)
       process_key = Stubbery.process_dictionary_key(module, unquote(name_and_arity))
-      Stubbery.add_stub(process_key, unquote(arglist_spec), unquote(return_value))
+      Stubbery.add_stub(process_key, unquote(arglist_spec), unquote(return_type), unquote(value))
       
       return_calculator = Stubbery.make__return_calculator(process_key, unquote(name_and_arity))
       mock(module, unquote(name_and_arity), return_calculator)
     end
+  end
+
+  def expand(_, _, _, [{_key, _value} | _]), do: raise @keyword_error
+
+  # Backward compatibility
+  def expand(module_alias, name_and_arity, arglist_spec, return_value) do
+    expand(module_alias, name_and_arity, arglist_spec, return: return_value)
   end
 
   @doc """

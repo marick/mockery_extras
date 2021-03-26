@@ -10,13 +10,13 @@ defmodule MockeryExtras.Stubbery do
   def given?({{Given, _module, _function_description}, _}), do: true
   def given?(_), do: false
 
-  defp new_stub(arglist_spec, return_value),
-    do: {arglist_spec, return_value, make_matcher(arglist_spec)}
+  defp new_stub(arglist_spec, return_type, return_value),
+    do: {arglist_spec, return_type, return_value, make_matcher(arglist_spec)}
 
-  def add_stub(process_key, arglist_spec, return_value) do
+  def add_stub(process_key, arglist_spec, return_type, return_value) do
     stubs_except = fn stubs, new_spec -> 
       stubs
-      |> Enum.reject(fn {old_spec, _, _} -> new_spec == old_spec end)
+      |> Enum.reject(fn {old_spec, _, _, _} -> new_spec == old_spec end)
     end
     
     older_stubs =
@@ -25,7 +25,7 @@ defmodule MockeryExtras.Stubbery do
       |> stubs_except.(arglist_spec)
 
     process_key
-    |> Process.put(older_stubs ++ [new_stub(arglist_spec, return_value)])
+    |> Process.put(older_stubs ++ [new_stub(arglist_spec, return_type, return_value)])
     :ok
   end
 
@@ -38,9 +38,12 @@ defmodule MockeryExtras.Stubbery do
       Assertions.flunk("You did not set up any stubs for #{funcall}")
     end
 
-    finder = fn {_, _, matcher} -> matcher.(arg_values) end
+    finder = fn {_, _, _, matcher} -> matcher.(arg_values) end
     case Enum.find(stubs, finder) do
-      {_, return_value, _} -> 
+      {_, :return, return_value, _} -> 
+        return_value
+      {arglist_spec, :stream, [return_value | remainder], _} ->
+        add_stub(process_key, arglist_spec, :stream, remainder)
         return_value
       _ -> 
         {_, module, [{function_name, _}]} = process_key
