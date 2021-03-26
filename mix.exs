@@ -2,7 +2,7 @@ defmodule MockeryExtras.MixProject do
   use Mix.Project
 
   @github "https://github.com/marick/mockery_extras"
-  @version "0.2.2"
+  @version "0.3.0"
 
   def project do
     [
