@@ -45,17 +45,23 @@ defmodule MockeryExtras.Stubbery do
       {arglist_spec, :stream, [return_value | remainder], _} ->
         add_stub(process_key, arglist_spec, :stream, remainder)
         return_value
+      {_, :stream, [], _} -> 
+        funcall = printable_funcall(process_key, arg_values)
+        Assertions.flunk("There are no more stubbed values for #{funcall}")
       _ -> 
-        {_, module, [{function_name, _}]} = process_key
-        arg_string =
-          arg_values
-          |> Enum.map(&inspect/1)
-          |> Enum.join(", ")
-        funcall = "#{inspect module}.#{to_string function_name}(#{arg_string})"
-        
+        funcall = printable_funcall(process_key, arg_values)
         Assertions.flunk("You did not set up a stub for #{funcall}")
     end
   end
+
+  defp printable_funcall({_, module, [{function_name, _}]}, arg_values) do 
+    arg_string =
+      arg_values
+      |> Enum.map(&inspect/1)
+      |> Enum.join(", ")
+    "#{inspect module}.#{to_string function_name}(#{arg_string})"
+  end    
+  
 
   def make_matcher(arglist_spec) do
     check = fn {value, spec} ->

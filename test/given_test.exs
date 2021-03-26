@@ -81,15 +81,18 @@ defmodule GivenTest do
     end
   end
 
-  describe "stream" do
-    def streamer(map, key), do: mockable(Map).get(map, key)
+  def streamer(map, key), do: mockable(Map).get(map, key)
 
-    test "typical case" do 
-      given Map.get(@any, @any), stream: [3, 4]
+  test "streaming" do 
+    given Map.get(@any, @any), stream: [3, 4]
       
-      assert streamer(%{}, :key) == 3
-      assert streamer(%{}, :key) == 4
-    end
+    assert streamer(%{}, :key) == 3
+    assert streamer(%{}, :key) == 4
+
+    assertion_fails("There are no more stubbed values for Map.get(%{}, :key)",
+      fn -> 
+        streamer(%{}, :key)          
+      end)
   end
 
   test "user errors" do
