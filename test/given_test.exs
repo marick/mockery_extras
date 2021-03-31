@@ -103,6 +103,9 @@ defmodule GivenTest do
 
     # There must be a single keyword, either `return:` or `stream:`
     # given Map.get(@any, @any), retur: 5
+
+    # It doesn't make sense to use a module-less function call.
+    # given streamer(%{}, 5), return: 333333333
   end
     
   describe "varieties of module descriptions" do 

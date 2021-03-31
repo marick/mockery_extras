@@ -103,10 +103,19 @@ defmodule MockeryExtras.Given do
   """
   
   defmacro given(funcall, return_description) do
-    {_, the_alias, name_and_arity, arglist_spec} = 
-      MacroX.decompose_call_alt(funcall)
+    case MacroX.decompose_call_alt(funcall) do 
+      {:in_named_module, the_alias, name_and_arity, arglist_spec} -> 
+        expand(the_alias, name_and_arity, arglist_spec, return_description)
+      _ ->
+        raise """
 
-    expand(the_alias, name_and_arity, arglist_spec, return_description)
+          You can't use `given` with `#{Macro.to_string funcall}`. 
+          There has to be a module in the call. You can use `__MODULE__`
+          if necessary:
+
+               __MODULE__.#{Macro.to_string funcall}
+        """
+    end
   end
 
 
