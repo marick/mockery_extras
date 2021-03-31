@@ -43,8 +43,8 @@ If it's some calculation involving `Date.utc_today`, there are problems:
    of `7759`, the test won't catch it.
    
 3. The test doesn't really say anything useful about the function. If
-   it happens that it should say that today is one day away from
-   today (for some weird business reason), you might want to document that.
+   it happens that today is one day away from today (for some weird
+   business reason), you might want the test to show that clearly.
    
 By a conservative count, 32,011,005 words have been written on
 how to handle this issue. For a simple case like this, a lot of people
@@ -74,20 +74,11 @@ That says that, while the test is running, we want a call to
 notation for always returning the same value, but this is the most
 general and so best to use when explaining how Mockery works.
 
-This package provides a notation I like better:
-
-```elixir
-    given Date.utc_today, return: today
-```
-
-I'll explain how that works later. It's just a simple(ish) macro on
-top of `mock`.
-
 I just said what we **want** `Date.utc_today/0` to do. But that's not
 what it will do, not yet. To make it return the constant value, we have to annotate *the
 specific function call we want to affect*. (That's unusual among
 mocking packages. It keeps one use of Mockery from interfering with
-another, even if they're exercising the same `Date.utc_today` and
+another, even if they're exercising the same call to `Date.utc_today` and
 running concurrently.)
 
 So the definition of `days_from` will look like this:
@@ -103,7 +94,9 @@ So the definition of `days_from` will look like this:
   end
 ```
 
-Note: the parentheses after `utc_today` are *required* in this case. Leave them off, ad you'll get a confusing error from the Elixir compiler. I'll explain it later. 
+Note: the parentheses after `utc_today` are *required* in this
+case. Leave them off, and you'll get a confusing error from the Elixir
+compiler. I'll explain it later.
 
 ## What the `mockable` macro does (part 1)
 
@@ -113,10 +106,12 @@ of the module it wraps. That is, after the macro executes, Elixir will
 compile this code:
 
 ```elixir
+  def days_from(date) do
     Date.diff(
       Mockery.Proxy.MacroProxy.utc_today(),
       ^^^^^^^^^^^^^^^^^^^^^^^^
       date)
+  end
 ```
 
 When the test calls `days_from/1`, that function will in turn call 
@@ -159,7 +154,7 @@ go through a two-step dance:
    :"this is weird"
    ```
    
-2. But you can't hand that to `def` because it's a macro that converts its first
+2. But you can't hand such a atom to `def` because it's a macro that converts its first
    argument into a function name, and it doesn't accept atom notation. That is,
    the following doesn't work:
    
@@ -167,7 +162,7 @@ go through a two-step dance:
    def :id(x), do: x
    ```
    
-   You can, however, do the (non)conversion yourself using unquote:
+   You can, however, do the (non)conversion yourself using `unquote`:
 
     ```
     def unquote(:id)(x), do: x
@@ -212,7 +207,7 @@ you'd see this:
   {:rand_seed, ...} # state for calculating the next random number
   
   {{Mockery, {Date, {:utc_today, 0}}}, #Function<7.34045286/0/2>},
-   ^^^^^^^^ lookup key ^^^^^^^^^^^^^^  ^^^^^^ lookup value ^^^^^^^
+   ^^^^^^^^ lookup key ^^^^^^^^^^^^^^  ^^^^^^ lookup value ^^^^^
 ]
 ```
 
@@ -315,7 +310,7 @@ The sequence of events is first-in, last-out:
 
 ## Postscript: Macros that parse function calls
 
-This package provides `given`, which I think is more pleasant for
+This package provides [`given`](https://hexdocs.pm/mockery_extras/MockeryExtras.Given.html#content), which I think is more pleasant for
 common uses of Mockery. Here's an example:
 
 ```elixir
@@ -330,10 +325,10 @@ like a function call (`RunningExample.name(:running)`) into what `mock` wants:
 ```
 
 More generally, a function call form can be translated into what
-Elixir/Erlang often calls MFA format, standing for Module, Function,
+Elixir/Erlang folk often call MFA format, standing for Module, Function,
 Arguments. The MFA format for `RunningExample.name(:running)` is
 `{RunningExample, :name, [:running]}`. Below I'll show how to pick apart
-each different kind of function call.
+different kinds of function call.
 
 ### `Macro.decompose_call`
 
@@ -384,7 +379,7 @@ iex(40)> Module.safe_concat([List, Char])
 ** (ArgumentError) argument error
 ```
 
-If you've nicknamed or abbreviated a module name with `alias` you get more results:
+If you've nicknamed or abbreviated a module name with `alias` you get richer results:
 
 ```elixir
 iex(6)> alias List.Chars, as: C
@@ -405,9 +400,13 @@ iex(10)> import IO.ANSI
 iex(11)> funcall = quote do: cursor_up(5)
 iex(12)> Macro.decompose_call(funcall)
 {:cursor_up, [5]}
-
-The decomposition gives no access to the module. When using these in a macro, you need to substitute `__MODULE__` which, at compile time, refers to the current module.
 ```
+
+
+This result gives no access to the module name. When using such
+a tuple in a macro, you need to supply `__MODULE__` which, at compile
+time, refers to the current module.
+
 
 #### Anonymous functions
 
@@ -420,7 +419,7 @@ iex(19)> Macro.decompose_call(funcall)
 ```
 
 When I want to work with anonymous functions, I given them their own
-syntax. For example, in [Ecto Test DSL], I have a notation for
+syntax. For example, in [Ecto Test DSL](https://github.com/marick/ecto_test_dsl), I have a notation for
 describing how one field in a structure should depend on
 another. Here's an example of the module form:
 
@@ -432,7 +431,7 @@ field_transformations(
 ```
 
 
-That means that the default expected value for the `date_diff` field
+That means that the default expected value for a structure's `date_diff` field
 is the result of applying `Date.diff` to today's date and the value of
 the `:start` field.
 
