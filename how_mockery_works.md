@@ -1,9 +1,9 @@
 # How Mockery works
 
-It's easier to understand how to use Mockery well if you understand
-how it works. Also, it reveals two neat Erlang/Elixir features: the
-process dictionary and custom handling of calls to module functions
-that don't exist ("method_missing"). 
+Mockery uses two neat Erlang/Elixir features: the process dictionary
+and custom handling of calls to module functions that don't exist
+("method_missing"). Mockery Extras demonstrates a third: parsing
+function calls in macros. I thought it would be fun to write them up.
 
 ## How to use Mockery
 
@@ -16,7 +16,7 @@ iex(2)> days_from(~D[2000-01-01])
 7759
 ```
 
-Implementation is trivial:
+The implementation is trivial:
 
 ```elixir
   def days_from(date) do
@@ -25,7 +25,7 @@ Implementation is trivial:
 ```
 
 
-That's a problem for testing. What goes in the `????` below?
+Testing is harder. What goes in the `????` below?
 
 ```elixir
   test "days_from" do
@@ -36,18 +36,20 @@ That's a problem for testing. What goes in the `????` below?
 If it's some calculation involving `Date.utc_today`, there are problems:
 
 1. The date might change while the test is running. (If you think that's too
-   unlikely to worry about, pretend we're testing `microseconds_from`.
+   unlikely to worry about, pretend we're testing `microseconds_from`.)
    
-2. The calculation is just going to repeat the logic under test. If
+2. The calculation is probably going to repeat the logic under test. If
    there's an off-by-one error and the value should be `7758` instead
    of `7759`, the test won't catch it.
    
-3. The test doesn't really say anything useful about the code. If
-   it happens that this code should say that today is one day away from
-   today (for some business reason), you might want that clarified here.
+3. The test doesn't really say anything useful about the function. If
+   it happens that it should say that today is one day away from
+   today (for some weird business reason), you might want to document that.
    
-By a conservative count, roughly 32,011,000 words have been written on
-how to handle this issue. For a simple case like this, a lot of people would favor adding an overridable default argument that can be used in a test:
+By a conservative count, 32,011,005 words have been written on
+how to handle this issue. For a simple case like this, a lot of people
+would favor adding an overridable default argument that can be used in
+a test:
 
 ```elixir
   def days_from(date, today \\ Date.utc_today) do
@@ -56,22 +58,21 @@ how to handle this issue. For a simple case like this, a lot of people would fav
 ```
 
 I'm not going to add to that argument, though I definitely Have
-Opinions. This is about how Mockery works, not when you should use it.
-
-So we're going to solve the problem like this:
+Opinions. Since this page is about how Mockery works, our solution
+will use it. That solution looks like this:
 
 ```elixir
-  test "today is zero days from today" do
+  test "today is zero days from today (not one!)" do
     today = ~D[2001-02-03]
-    mock Date, [utc_today: 0], fn -> today end   # <<<<<
+    mock Date, [utc_today: 0], fn -> today end   # <<<<<<<<<<<<
     assert days_from(today) == 0
   end
 ```
 
-That says that - for the duration of the test - we want a call to
+That says that, while the test is running, we want a call to
 `Date.utc_today/0` to return `~D[2001-02-03]`. There's a simpler
 notation for always returning the same value, but this is the most
-general and so most informative. 
+general and so best to use when explaining how Mockery works.
 
 This package provides a notation I like better:
 
@@ -82,21 +83,22 @@ This package provides a notation I like better:
 I'll explain how that works later. It's just a simple(ish) macro on
 top of `mock`.
 
-I just said what we *want* `Date.utc_today/0` to do. But that's not
-what it will do, not yet. To make it work, we have to annotate *the
+I just said what we **want** `Date.utc_today/0` to do. But that's not
+what it will do, not yet. To make it return the constant value, we have to annotate *the
 specific function call we want to affect*. (That's unusual among
 mocking packages. It keeps one use of Mockery from interfering with
 another, even if they're exercising the same `Date.utc_today` and
 running concurrently.)
 
-So the definition of `
+So the definition of `days_from` will look like this:
 
 ```elixir
   import Mockery.Macro
 
   def days_from(date) do
     Date.diff(
-      mockable(Date).utc_today(),  # <<<<
+      mockable(Date).utc_today(),
+      ^^^^^^^^^^^^^^
       date)
   end
 ```
@@ -106,8 +108,9 @@ Note: the parentheses after `utc_today` are *required* in this case. Leave them 
 ## What the `mockable` macro does (part 1)
 
 `mockable` is a macro, which means that it rewrites code at compile
-time. For the moment, I'll pretend that *all* it does is change the
-name of the module it wraps. That is, Elixir will compile this code:
+time. For the moment, I'll pretend that all it does is change the name
+of the module it wraps. That is, after the macro executes, Elixir will
+compile this code:
 
 ```elixir
     Date.diff(
@@ -117,13 +120,13 @@ name of the module it wraps. That is, Elixir will compile this code:
 ```
 
 When the test calls `days_from/1`, that function will in turn call 
-`Mockery.Proxy.MacroProxy.utc_today()`
+`Mockery.Proxy.MacroProxy.utc_today()`.
 
 ### Calling missing functions
 
 The `Mockery.Proxy.MacroProxy` module doesn't have a `utc_today/0`
 function, so you'd nomally expect to see an `UndefinedFunctionError`
-when the code was executed, saying "function
+when the code was executed, one saying "function
 Mockery.Proxy.MacroProxy.utc_today/0 is undefined or private". You
 don't because of a special definition in that module:
 
@@ -174,7 +177,7 @@ It's weird, but it works.
 
 `$handle_undefined_function` is given the name of the attempted
 function (`utc_today`) and its argument list (`[]`). In our example
-use of `mock`, it should call that zero-argument function that returns
+use of `mock`, it should call our zero-argument function that returns
 `~D[2001-01-01]`. But how does it find that function?
 
 ## The process dictionary
@@ -188,7 +191,7 @@ is no exception. It is inaccessible from outside its owning process,
 so it cannot share any information - such as mocking information -
 with other processes.
 
-As it happens, each ExUnit test runs inside its own process, so has
+As it happens, each ExUnit test runs inside its own process, so each has
 its own private process dictionary.
 
 The contents of the process dictionary can be fetched with
@@ -217,20 +220,20 @@ The process dictionary is something like a `Keyword` list, but doesn't
 require atoms as arguments.
 
 `Mockery.Proxy.MacroProxy.$handle_undefined_function` should find that
-that `Mockery` entry and call the given function. It does that...
+that `Mockery` entry and call the associated function. It does that by...
 
-*record scratch sound effect*
+[*record scratch sound effect*](https://www.youtube.com/watch?v=CfBCD1IjRo0)
 
 It can't do that because it is given only the name of the function
-(`:utc_today`) and the arglist (in this case, the empty list. From
-that, it knows part of the key will be `{utc_today,0}`, but it has
+(`:utc_today`) and the arglist (in this case, the empty list). From
+that, it knows part of the key will be `{utc_today, 0}`, but it has
 no access to the module name, `Date`.
 
 
 ## A complicated little dance
 
 However, `$handle_undefined_function` does have access to the process
-dictionary, the `mockable` macro does more than substitute
+dictionary. So the `mockable` macro does more than substitute
 `Mockery.Proxy.MacroProxy` for `Date`. It also puts `Date` in the
 process dictionary. Given that you've written this:
 
@@ -254,7 +257,7 @@ There's not actually a `Process.push`, so the real code uses
 `Process.get/2` and `Process.put/2`. I also changed the name from
 `Mockery.MockableModule` to `:__mockery_module_stack` because I think
 the latter is clearer and because there's not actually a module named
-`Mockery.MockableModule - its just used as a likely-to-be-unique
+  `Mockery.MockableModule` - it's just used as a likely-to-be-unique
 atom.
 
 The above explains why you get a strange error message if you leave
@@ -284,7 +287,7 @@ Conflict found at
 Immediately after `Date` is pushed into the process dictionary, the
 code tries to call `Mockery.Proxy.MacroProxy.utc_today` and enters
 `Mockery.Proxy.MacroProxy.$handle_undefined_function`. That pops
-`Date` off the `:__mockable_module_stack`, combines it with the
+`Date` off the `:__mockable_module_stack`, then combines it with the
 function name and argument list to look up this key:
 
 ```elixir
@@ -299,10 +302,11 @@ You may wonder why `:__mockable_module_stack` is a stack instead of just a value
 
 ```
 mockable(BigModule).do_something(
-  mockable(SmallModule.provide_something))
+  mockable(SmallModule.provide_something)
+  )
 ```
 
-The sequence of events is:
+The sequence of events is first-in, last-out:
 
 1. Push `BigModule` onto the stack.
 2. Push `SmallModule` onto the stack.
@@ -325,16 +329,124 @@ like a function call (`RunningExample.name(:running)`) into what `mock` wants:
     mock RunningExample, [name: 1]
 ```
 
-I keep finding uses for that notation, so you might want to use it
-too. (Reminder: all the code in this Github repo is public domain.)
+More generally, a function call form can be translated into what
+Elixir/Erlang often calls MFA format, standing for Module, Function,
+Arguments. The MFA format for `RunningExample.name(:running)` is
+`{RunningExample, :name, [:running]}`. Below I'll show how to pick apart
+each different kind of function call.
 
-(If there are better ways to do this, let me know.)
+### `Macro.decompose_call`
+
+Elixir has a built-in way to dissect function call forms. Here's how it works
+on `Date.utc_string/1`:
+
+```elixir
+iex(1)> funcall = quote do: Date.utc_string
+iex(2)> Macro.decompose_call(funcall)
+{{:__aliases__, [alias: false], [:Date]}, :utc_string, []}
+                                 ^^^^^    ^^^^^^^^^^^  ^^
+```
+
+We have all the information to create an MFA or to describe a function
+call to Mockery. A multi-component module name produces a list:
+
+```elixir
+iex(4)> funcall = quote do: List.Chars.to_charlist(5)
+iex(5)> r = Macro.decompose_call(funcall)
+{{:__aliases__, [alias: false], [:List, :Chars]}, :to_charlist, [5]}
+                                ^^^^^^^^^^^^^^^
+```
+
+If you want an MFA, you have to stitch the modules back together:
+
+```elixir
+iex(30)> {{:__aliases__, _, aliases},  fun_atom, args} = r
+iex(32)> Enum.reduce(aliases, :Elixir, fn alias, acc ->
+                              ^^^^^^^
+...(32)>   Module.safe_concat(acc, alias)
+           ^^^^^^^^^^^^^^^^^^
+...(32)> end)
+List.Chars
+``` 
+
+Notice that the beginning value of the reduction is `:Elixir`, which
+is silently prepended to all Elixir modules (so that they don't
+conflict with Erlang). I don't know of a situation in which
+concatenating `[:Elixir, List, Chars]` is different than
+`[List, Chars]`, but it's a convenient starting value.
+
+`Module.safe_concat` ensures that the component modules are actually
+available. In the following example, I misspell `Chars`, so I get an
+error:
+
+```elixir
+iex(40)> Module.safe_concat([List, Char])
+** (ArgumentError) argument error
+```
+
+If you've nicknamed or abbreviated a module name with `alias` you get more results:
+
+```elixir
+iex(6)> alias List.Chars, as: C
+iex(7)> funcall = quote do: C.to_charlist(5)
+iex(8)> Macro.decompose_call(funcall)
+{{:__aliases__, [alias: List.Chars], [:C]}, :to_charlist, [5]}
+                        ^^^^^^^^^^
+```
+
+You get both the abbreviation and the real name. For uses like
+`given`, where the results of composing a call are immediately used in
+a macro, you don't need the real name.
+
+Things are a bit different when you call a function without a prepending module name, like when you use `import` or the function is defined in the same module as the call:
+
+```elixir
+iex(10)> import IO.ANSI
+iex(11)> funcall = quote do: cursor_up(5)
+iex(12)> Macro.decompose_call(funcall)
+{:cursor_up, [5]}
+
+The decomposition gives no access to the module. When using these in a macro, you need to substitute `__MODULE__` which, at compile time, refers to the current module.
+```
+
+#### Anonymous functions
+
+`Macro.decompose_call` isn't for use with anonymous functions:
+
+```elixir
+iex(18)> funcall = quote do: (fn a, b -> a + x end).(1, 2)
+iex(19)> Macro.decompose_call(funcall)
+:error
+```
+
+When I want to work with anonymous functions, I given them their own
+syntax. For example, in [Ecto Test DSL], I have a notation for
+describing how one field in a structure should depend on
+another. Here's an example of the module form:
+
+```elixir
+field_transformations(
+  date_diff: on_success(Date.diff(Date.utc_today, :start))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+)
+```
 
 
+That means that the default expected value for the `date_diff` field
+is the result of applying `Date.diff` to today's date and the value of
+the `:start` field.
 
-    
+However, when working with an anonymous function, the format is:
 
+```elixir
+  age_plus: on_success(&(&1+1), applied_to: [:age])
+```
 
+(This version of `on_success` is actually a function rather than a macro.)
 
+   
+### `MacroX.decompose_call_alt`
 
-     
+I find the output of `decompose_call` a bit cumbersome for my uses, so
+I've written [an alternative](lib/util/macro_x.ex). Use it if you like: everything in this package is public domain.
+
